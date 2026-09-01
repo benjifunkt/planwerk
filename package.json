@@ -1,0 +1,117 @@
+{
+  "name": "planwerk",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Local-first weekly planning app for calm personal orientation.",
+  "license": "AGPL-3.0-only",
+  "author": "Benjamin Bauer",
+  "homepage": "https://benjamin-bauer.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/benjifunkt/planwerk.git"
+  },
+  "main": "main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.cjs tests/*.test.mjs",
+    "release:check": "npm run typecheck && npm test && npm run build && npm audit --omit=dev --audit-level=low && node scripts/check-public-tree.cjs",
+    "preview": "vite preview",
+    "install:legacy": "node scripts/install-legacy.cjs",
+    "electron:start": "cross-env NODE_ENV=development node scripts/start-electron.cjs",
+    "electron:dev": "npm run electron:start",
+    "electron:build": "npm run build && electron-builder --publish=never",
+    "electron:build:mac:arm64": "npm run build && electron-builder --mac --arm64 --publish=never",
+    "electron:build:mac:x64": "npm run build && electron-builder --mac --x64 --publish=never",
+    "electron:build:win": "npm run build && electron-builder --win nsis --x64 --publish=never",
+    "electron:build:win:dir": "npm run build && electron-builder --win --x64 --dir --publish=never"
+  },
+  "build": {
+    "appId": "com.benjaminbauer.planwerk",
+    "productName": "Planwerk",
+    "directories": {
+      "output": "release"
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "dist/**/*",
+      "main.cjs",
+      "preload.cjs",
+      "updater.cjs",
+      "planwerkFile.cjs",
+      "mcpPreferences.cjs",
+      "mcpServer.cjs",
+      "build/icon.ico"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["arm64", "x64"]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "benjifunkt",
+        "repo": "planwerk",
+        "releaseType": "draft"
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "planwerk",
+        "name": "Planwerk File",
+        "description": "Planwerk workspace package",
+        "role": "Editor",
+        "isPackage": true
+      }
+    ]
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "electron-updater": "^6.8.9",
+    "express": "^5.2.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-is": "^19.2.5",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.5.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
+    "electron": "^42.2.0",
+    "electron-builder": "^26.15.3",
+    "postcss": "^8.5.13",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.10",
+    "wait-on": "^9.0.4"
+  }
+}

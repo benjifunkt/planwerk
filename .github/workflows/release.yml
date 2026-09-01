@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Verify tag matches package version
+        shell: bash
+        run: test "${GITHUB_REF_NAME}" = "v$(node -p "require('./package.json').version")"
+      - name: Install dependencies
+        run: npm ci
+      - name: Run release checks
+        run: npm run release:check
+
+  create-draft:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Create or refresh the release draft
+        shell: bash
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release edit "${GITHUB_REF_NAME}" \
+              --title "Planwerk ${GITHUB_REF_NAME#v}" \
+              --notes-file RELEASE_NOTES.md \
+              --draft
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "Planwerk ${GITHUB_REF_NAME#v}" \
+              --notes-file RELEASE_NOTES.md \
+              --draft
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  macos:
+    needs: create-draft
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Intel and Apple Silicon releases
+        run: npm run build && npx electron-builder --mac --x64 --arm64 --publish never
+      - name: Verify macOS app bundles
+        run: |
+          codesign --verify --deep --strict --verbose=2 release/mac/Planwerk.app
+          codesign --verify --deep --strict --verbose=2 release/mac-arm64/Planwerk.app
+      - name: Store macOS release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: |
+            release/Planwerk-*.dmg
+            release/Planwerk-*.dmg.blockmap
+            release/Planwerk-*.zip
+            release/Planwerk-*.zip.blockmap
+            release/latest-mac.yml
+          if-no-files-found: error
+
+  windows:
+    needs: create-draft
+    runs-on: windows-2025
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Windows release
+        run: npm run build && npx electron-builder --win nsis --x64 --publish never
+      - name: Store Windows release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            release/Planwerk-*.exe
+            release/Planwerk-*.exe.blockmap
+            release/latest.yml
+          if-no-files-found: error
+
+  publish-assets:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect release files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-release'
+          path: release-assets
+          merge-multiple: true
+      - name: Upload all files to the release draft
+        shell: bash
+        run: gh release upload "${GITHUB_REF_NAME}" release-assets/* --repo "${GITHUB_REPOSITORY}" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
